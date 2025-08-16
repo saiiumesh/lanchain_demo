@@ -1,4 +1,4 @@
-name: Azure Web App Deploy
+name: Deploy FastAPI to Azure Web App
 
 on:
   push:
@@ -11,23 +11,27 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
+      # 1️⃣ Checkout code
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.10'
+      # 2️⃣ Setup Python
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
 
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r medical-webapp/backend/requirements.txt
+      # 3️⃣ Install backend dependencies
+      - name: Install backend dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r medical-webapp/api/requirements.txt
 
-    - name: 'Deploy to Azure Web App'
-      uses: azure/webapps-deploy@v2
-      with:
-        app-name: 'medical-health-gpt'
-        slot-name: 'production'
-        publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-        package: medical-webapp/backend
+      # 4️⃣ Deploy to Azure Web App
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v2
+        with:
+          app-name: 'medical-health-gpt'   # Replace with your Web App name
+          slot-name: 'production'
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          package: medical-webapp/api
