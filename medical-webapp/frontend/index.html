@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Medical Report Q&A</title>
+</head>
+<body>
+    <h2>Medical Report Assistant</h2>
+
+    <select id="patientSelect"></select>
+    <br><br>
+    <input type="text" id="questionInput" placeholder="Type your question" size="50"/>
+    <button onclick="askQuestion()">Ask</button>
+
+    <p id="answer"></p>
+
+    <script>
+        async function loadPatients() {
+            let res = await fetch("/patients");
+            let patients = await res.json();
+            let select = document.getElementById("patientSelect");
+            patients.forEach(p => {
+                let option = document.createElement("option");
+                option.value = p; option.text = p;
+                select.add(option);
+            });
+        }
+
+        async function askQuestion() {
+            let patient = document.getElementById("patientSelect").value;
+            let question = document.getElementById("questionInput").value;
+            let res = await fetch("/ask", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({patient_name: patient, question: question})
+            });
+            let data = await res.json();
+            document.getElementById("answer").innerText = data.answer;
+        }
+
+        loadPatients();
+    </script>
+</body>
+</html>

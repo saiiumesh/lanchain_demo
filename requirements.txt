@@ -1,0 +1,6 @@
+azure-identity==1.14.0
+azure-storage-blob==12.15.0
+langgraph==0.2.6
+openai==0.27.8
+requests==2.31.0
+certifi==2023.7.22
