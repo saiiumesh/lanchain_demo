@@ -1,0 +1,43 @@
+name: Azure Static Web Apps CI/CD
+
+on:
+  push:
+    branches:
+      - dev_push  # Replace with your deployment branch
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    name: Build and Deploy Job
+    steps:
+      # 1️⃣ Checkout the repository
+      - name: Checkout Repo
+        uses: actions/checkout@v3
+
+      # 2️⃣ Set up Python
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      # 3️⃣ Upgrade pip
+      - name: Upgrade pip
+        run: python -m pip install --upgrade pip
+
+      # 4️⃣ Install backend dependencies
+      - name: Install Backend Dependencies
+        run: |
+          pip install -r medical-webapp/backend/requirements.txt
+
+      # 5️⃣ Build & Deploy to Azure Static Web App
+      - name: Build and Deploy to Azure Static Web Apps
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          action: "upload"
+          app_location: "medical-webapp/frontend"   # Path to frontend folder
+          api_location: "medical-webapp/backend"    # Path to backend folder
+          output_location: ""                       # Leave empty if frontend builds in place
