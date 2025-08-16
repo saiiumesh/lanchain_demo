@@ -1,11 +1,20 @@
 import os
 from fastapi import FastAPI, Form
+from fastapi.middleware.cors import CORSMiddleware
 from azure.storage.blob import BlobServiceClient
 from openai import AzureOpenAI
 import datetime
 import re
 
 app = FastAPI()
+
+# Allow all origins for testing; adjust in production
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # --- Load env vars ---
 AZURE_OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
@@ -25,7 +34,6 @@ reports = {}
 for blob in blobs:
     blob_client = blob_service_client.get_blob_client(container=CONTAINER_NAME, blob=blob.name)
     text = blob_client.download_blob().readall().decode("utf-8")
-    # Extract patient name from text, fallback to blob name
     match = re.search(r'Patient Name:\s*(.*)', text)
     patient_name = match.group(1).strip() if match else blob.name
     reports[patient_name] = text
@@ -42,7 +50,6 @@ def get_dynamic_greeting():
     now = datetime.datetime.now()
     hour = now.hour
     day_of_week = now.strftime("%A")
-    
     if 5 <= hour < 12:
         greeting = "Good morning"
     elif 12 <= hour < 17:
@@ -51,7 +58,6 @@ def get_dynamic_greeting():
         greeting = "Good evening"
     else:
         greeting = "Hello"
-    
     current_time = now.strftime("%I:%M %p")
     return f"{greeting}! It's {current_time} on {day_of_week}."
 
@@ -71,14 +77,21 @@ def ask_question(patient_name: str = Form(...), question: str = Form(...)):
         return {"error": "Patient not found"}
     
     report_text = reports[patient_name]
+    prompt = (
+        "You are a medical assistant AI. Answer questions strictly based on the report text below.\n\n"
+        f"Report:\n{report_text}\n\nQuestion: {question}"
+    )
     
     response = client.chat.completions.create(
         model=AZURE_OPENAI_DEPLOYMENT,
-        messages=[
-            {"role": "system", "content": "You are a medical assistant AI. Answer questions strictly based on the report text below."},
-            {"role": "user", "content": f"Report:\n{report_text}\n\nQuestion: {question}"}
-        ]
+        messages=[{"role": "user", "content": prompt}]
     )
     
     answer = response.choices[0].message.content
-    return {"answer": answer}
+    greeting = get_dynamic_greeting()
+    return {
+        "greeting": greeting,
+        "patient": patient_name,
+        "question": question,
+        "answer": answer
+    }
