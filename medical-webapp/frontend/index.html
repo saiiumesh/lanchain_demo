@@ -1,43 +1,85 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
     <title>Medical Report Q&A</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 40px;
+            background-color: #f9f9f9;
+        }
+        h1 { color: #2a9d8f; }
+        input, textarea {
+            width: 100%;
+            margin: 10px 0;
+            padding: 8px;
+            font-size: 16px;
+        }
+        button {
+            padding: 10px 20px;
+            background-color: #264653;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover { background-color: #2a9d8f; }
+        #answer { margin-top: 20px; padding: 15px; background-color: #e9ecef; border-radius: 5px; }
+    </style>
 </head>
 <body>
-    <h2>Medical Report Assistant</h2>
+    <h1>Medical Report Q&A</h1>
 
-    <select id="patientSelect"></select>
-    <br><br>
-    <input type="text" id="questionInput" placeholder="Type your question" size="50"/>
+    <label for="patientName">Patient Name:</label>
+    <input type="text" id="patientName" placeholder="Enter patient name...">
+
+    <label for="question">Question:</label>
+    <textarea id="question" rows="3" placeholder="Type your question here..."></textarea>
+
     <button onclick="askQuestion()">Ask</button>
 
-    <p id="answer"></p>
+    <div id="answer"></div>
 
     <script>
-        async function loadPatients() {
-            let res = await fetch("/patients");
-            let patients = await res.json();
-            let select = document.getElementById("patientSelect");
-            patients.forEach(p => {
-                let option = document.createElement("option");
-                option.value = p; option.text = p;
-                select.add(option);
-            });
-        }
-
         async function askQuestion() {
-            let patient = document.getElementById("patientSelect").value;
-            let question = document.getElementById("questionInput").value;
-            let res = await fetch("/ask", {
-                method: "POST",
-                headers: {"Content-Type": "application/json"},
-                body: JSON.stringify({patient_name: patient, question: question})
-            });
-            let data = await res.json();
-            document.getElementById("answer").innerText = data.answer;
-        }
+            const patientName = document.getElementById("patientName").value.trim();
+            const question = document.getElementById("question").value.trim();
+            const answerDiv = document.getElementById("answer");
 
-        loadPatients();
+            if (!patientName || !question) {
+                alert("Please enter both patient name and question.");
+                return;
+            }
+
+            answerDiv.innerHTML = "⏳ Asking AI...";
+
+            try {
+                const response = await fetch("/api/ask_question", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ patient_name: patientName, question })
+                });
+
+                if (!response.ok) {
+                    const text = await response.text(); // fallback if not JSON
+                    console.error("API error:", text);
+                    answerDiv.innerHTML = `<span style="color:red">API error occurred. Check console.</span>`;
+                    return;
+                }
+
+                const data = await response.json();
+
+                answerDiv.innerHTML = `
+                    <p><strong>${data.greeting}</strong></p>
+                    <p><em>Report:</em> ${data.report}</p>
+                    <p><em>Question:</em> ${data.question}</p>
+                    <p><strong>Answer:</strong> ${data.answer}</p>
+                `;
+            } catch (err) {
+                console.error("Fetch failed:", err);
+                answerDiv.innerHTML = `<span style="color:red">Failed to get response. Check console.</span>`;
+            }
+        }
     </script>
 </body>
 </html>
