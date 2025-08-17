@@ -27,6 +27,14 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r medical-webapp/api/requirements.txt
 
+      # 🔍 Debug: show repo contents
+      - name: List repo contents
+        run: |
+          echo "Root of repo:"
+          ls -R .
+          echo "Frontend folder:"
+          ls -R medical-webapp/frontend
+
       # 4️⃣ Deploy to Azure Static Web App
       - name: Deploy to Azure Static Web App
         uses: Azure/static-web-apps-deploy@v1
@@ -34,6 +42,6 @@ jobs:
           azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           action: "upload"
-          app_location: "medical-webapp/frontend"   
+          app_location: "medical-webapp/frontend"   # 👈 matches your index.html
           api_location: "medical-webapp/api"
-          output_location: ""                      
+          output_location: ""
