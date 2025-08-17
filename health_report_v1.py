@@ -26,18 +26,9 @@ for blob in blobs:
     # Extract patient name from text, fallback to blob name if not found
     match = re.search(r'Patient Name:\s*(.*)', text)
     patient_name = match.group(1).strip() if match else blob.name
-    reports[patient_name] = text
+    reports[patient_name.lower()] = text  # store lowercase key for easier matching
 
-# --- List all patients dynamically ---
-print("Patients available:")
-for idx, name in enumerate(reports.keys()):
-    print(f"{idx+1}. {name}")
-
-choice = int(input("Select patient number to view details: ")) - 1
-selected_patient = list(reports.keys())[choice]
-report_text = reports[selected_patient]
-
-# --- Dynamic greeting (same as before) ---
+# --- Dynamic greeting ---
 now = datetime.datetime.now()
 hour = now.hour
 day_of_week = now.strftime("%A")
@@ -52,31 +43,58 @@ else:
     greeting = "Hello"
 
 current_time = now.strftime("%I:%M %p")
-print("Hi Umesh" f"\n{greeting}! It's {current_time} on {day_of_week}.")
-print(f"You selected patient: {selected_patient}")
-print("You can now start asking questions about the report. Type 'exit' to quit.\n")
+print("Hi Umesh" f"\n{greeting}! It's {current_time} on {day_of_week}.\n")
 
-# --- Connect to Azure OpenAI ---
-client = AzureOpenAI(
-    api_key=AZURE_OPENAI_API_KEY,
-    api_version=AZURE_OPENAI_API_VERSION,
-    azure_endpoint=AZURE_OPENAI_ENDPOINT
-)
+# --- Ask whether to show patients ---
+show_patients = input("Would you like to see the list of patients? (yes/no): ").strip().lower()
 
-# --- Interactive Q&A loop ---
-while True:
-    question = input("Your question: ")
-    if question.lower() in ["exit", "quit"]:
-        print("Exiting. Goodbye! 👋")
-        break
+if show_patients in ["yes", "y"]:
+    print("\nPatients available:")
+    for idx, name in enumerate(reports.keys()):
+        print(f"{idx+1}. {name.title()}")
+    
+    choice = int(input("\nSelect patient number to view details: ")) - 1
+    selected_patient = list(reports.keys())[choice]
+    current_patient = selected_patient
+    print(f"\nYou selected patient: {current_patient.title()}")
+    print("You can now start asking questions about the reports. Type 'exit' to quit.\n")
 
-    response = client.chat.completions.create(
-        model=AZURE_OPENAI_DEPLOYMENT,
-        messages=[
-            {"role": "system", "content": "You are a medical assistant AI. Answer questions strictly based on the report text below."},
-            {"role": "user", "content": f"Report:\n{report_text}\n\nQuestion: {question}"}
-        ]
+    # --- Connect to Azure OpenAI ---
+    client = AzureOpenAI(
+        api_key=AZURE_OPENAI_API_KEY,
+        api_version=AZURE_OPENAI_API_VERSION,
+        azure_endpoint=AZURE_OPENAI_ENDPOINT
     )
 
-    answer = response.choices[0].message.content
-    print(f"Answer: {answer}\n")
+    # --- Interactive Q&A loop ---
+    while True:
+        question = input("Ask your Question: ")
+        if question.lower() in ["exit", "quit"]:
+            print("Exiting. Goodbye!")
+            break
+
+        # Check if another patient name is mentioned in the question
+        switch_to = None
+        for name in reports.keys():
+            if name in question.lower():
+                switch_to = name
+                break
+
+        if switch_to:
+            current_patient = switch_to
+            print(f"(Switching context to {current_patient.title()} based on your question)")
+
+        report_text = reports[current_patient]
+
+        response = client.chat.completions.create(
+            model=AZURE_OPENAI_DEPLOYMENT,
+            messages=[
+                {"role": "system", "content": "You are a medical assistant AI. Answer questions strictly based on the report text below."},
+                {"role": "user", "content": f"Report:\n{report_text}\n\nQuestion: {question}"}
+            ]
+        )
+
+        answer = response.choices[0].message.content
+        print(f"Answer: {answer}\n")
+else:
+    print("Okay, no patients selected. Exiting program.")
