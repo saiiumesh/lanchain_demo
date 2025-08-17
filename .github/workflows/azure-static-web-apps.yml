@@ -1,4 +1,4 @@
-name: Deploy FastAPI to Azure Static Web App
+name: Deploy Fullstack App to Azure Static Web App
 
 on:
   push:
@@ -15,7 +15,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # 2️⃣ Setup Python (for API)
+      # 2️⃣ Setup Python (for API backend)
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
@@ -34,7 +34,7 @@ jobs:
           azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
           repo_token: ${{ secrets.GITHUB_TOKEN }} # Auto-created by GitHub
           action: "upload"
-          #### Update these paths to match your repo ####
-          app_location: "/"                  # root (or frontend folder if you have one)
-          api_location: "medical-webapp/api" # path to your FastAPI backend
-          output_location: ""                # build output (e.g. "build" if React/Vue, empty if none)
+          #### Paths for your project ####
+          app_location: "medical-webapp/frontend"              # your static frontend
+          api_location: "medical-webapp/api"    # your FastAPI backend
+          output_location: ""                   # leave empty since it's plain HTML
