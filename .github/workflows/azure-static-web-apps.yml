@@ -35,6 +35,6 @@ jobs:
           repo_token: ${{ secrets.GITHUB_TOKEN }} # Auto-created by GitHub
           action: "upload"
           #### Paths for your project ####
-          app_location: "medical-webapp/frontend"              # your static frontend
-          api_location: "medical-webapp/api"    # your FastAPI backend
+          app_location: "frontend"              
+          api_location: "medical-webapp/api"    
           output_location: ""                   # leave empty since it's plain HTML
