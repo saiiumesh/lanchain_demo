@@ -1,22 +1,58 @@
 import logging
 import os
+import json
+import azure.functions as func
+import openai
+from azure.storage.blob import BlobServiceClient
 import re
 import datetime
-import json
-from azure.storage.blob import BlobServiceClient
-from openai import AzureOpenAI
-import azure.functions as func
 
-# --- Environment variables ---
-AZURE_OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-AZURE_OPENAI_ENDPOINT = os.getenv("OPENAI_API_BASE")
-AZURE_OPENAI_API_VERSION = os.getenv("OPENAI_API_VERSION", "2024-02-15-preview")
-AZURE_OPENAI_DEPLOYMENT = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4")
+# --- Load env vars ---
+openai.api_type = "azure"
+openai.api_key = os.getenv("OPENAI_API_KEY")
+openai.api_base = os.getenv("OPENAI_API_BASE")
+openai.api_version = os.getenv("OPENAI_API_VERSION", "2024-02-15-preview")
+deployment_name = os.getenv("OPENAI_DEPLOYMENT")
+
 AZURE_STORAGE_CONNECTION_STRING = os.getenv("AZURE_STORAGE_CONNECTION_STRING")
 CONTAINER_NAME = "reports"
 
-# --- Greeting ---
-def get_greeting():
+# --- Connect to Blob and load all reports ---
+blob_service_client = BlobServiceClient.from_connection_string(AZURE_STORAGE_CONNECTION_STRING)
+container_client = blob_service_client.get_container_client(CONTAINER_NAME)
+blobs = list(container_client.list_blobs())
+
+reports = {}
+for blob in blobs:
+    blob_client = blob_service_client.get_blob_client(container=CONTAINER_NAME, blob=blob.name)
+    text = blob_client.download_blob().readall().decode("utf-8")
+    match = re.search(r'Patient Name:\s*(.*)', text)
+    patient_name = match.group(1).strip() if match else blob.name
+    reports[patient_name] = text
+
+# --- Azure Function handler ---
+def main(req: func.HttpRequest) -> func.HttpResponse:
+    try:
+        req_body = req.get_json()
+        patient_name = req_body.get("patient_name")
+        question = req_body.get("question")
+    except ValueError:
+        return func.HttpResponse(
+            json.dumps({"error": "Invalid JSON"}),
+            status_code=400,
+            mimetype="application/json"
+        )
+
+    if patient_name not in reports:
+        return func.HttpResponse(
+            json.dumps({"error": f"Patient '{patient_name}' not found"}),
+            status_code=404,
+            mimetype="application/json"
+        )
+
+    report_text = reports[patient_name]
+
+    # --- Dynamic greeting ---
     now = datetime.datetime.now()
     hour = now.hour
     day_of_week = now.strftime("%A")
@@ -29,88 +65,32 @@ def get_greeting():
     else:
         greeting = "Hello"
     current_time = now.strftime("%I:%M %p")
-    return f"{greeting}! It's {current_time} on {day_of_week}."
 
-# --- Load reports from Blob Storage ---
-def load_reports():
-    reports = {}
-    if not AZURE_STORAGE_CONNECTION_STRING:
-        logging.error("Missing AZURE_STORAGE_CONNECTION_STRING")
-        return reports
+    # --- Ask Azure OpenAI ---
     try:
-        blob_service_client = BlobServiceClient.from_connection_string(AZURE_STORAGE_CONNECTION_STRING)
-        container_client = blob_service_client.get_container_client(CONTAINER_NAME)
-        for blob in container_client.list_blobs():
-            blob_client = blob_service_client.get_blob_client(container=CONTAINER_NAME, blob=blob.name)
-            text = blob_client.download_blob().readall().decode("utf-8")
-            match = re.search(r'Patient Name:\s*(.*)', text)
-            patient_name = match.group(1).strip() if match else blob.name
-            reports[patient_name] = text
-    except Exception as e:
-        logging.error("Error loading blobs: %s", str(e), exc_info=True)
-    return reports
-
-# --- Azure Function entry ---
-def main(req: func.HttpRequest) -> func.HttpResponse:
-    try:
-        data = req.get_json()
-        patient_name = data.get("patient_name")
-        question = data.get("question")
-        if not patient_name or not question:
-            return func.HttpResponse(
-                json.dumps({"error": "Missing patient_name or question"}),
-                status_code=400,
-                mimetype="application/json"
-            )
-
-        reports = load_reports()
-        if patient_name not in reports:
-            return func.HttpResponse(
-                json.dumps({"error": f"No report found for {patient_name}"}),
-                status_code=404,
-                mimetype="application/json"
-            )
-
-        report_text = reports[patient_name]
-
-        if not all([AZURE_OPENAI_API_KEY, AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_DEPLOYMENT]):
-            logging.error("Missing OpenAI configuration")
-            return func.HttpResponse(
-                json.dumps({"error": "OpenAI configuration not set"}),
-                status_code=500,
-                mimetype="application/json"
-            )
-
-        client = AzureOpenAI(
-            api_key=AZURE_OPENAI_API_KEY,
-            api_version=AZURE_OPENAI_API_VERSION,
-            azure_endpoint=AZURE_OPENAI_ENDPOINT
-        )
-
-        response = client.chat.completions.create(
-            model=AZURE_OPENAI_DEPLOYMENT,
+        response = openai.ChatCompletion.create(
+            engine=deployment_name,
             messages=[
-                {"role": "system", "content": "You are a medical assistant AI. Answer questions strictly based on the report text below."},
+                {"role": "system", "content": "You are a medical assistant AI. Answer strictly based on the report."},
                 {"role": "user", "content": f"Report:\n{report_text}\n\nQuestion: {question}"}
             ]
         )
-        answer = response.choices[0].message.content
-
-        return func.HttpResponse(
-            json.dumps({
-                "greeting": get_greeting(),
-                "report": report_text,
-                "question": question,
-                "answer": answer
-            }),
-            status_code=200,
-            mimetype="application/json"
-        )
-
+        answer = response.choices[0].message['content']
     except Exception as e:
-        logging.error("Unhandled exception: %s", str(e), exc_info=True)
+        logging.error(f"OpenAI Error: {e}")
         return func.HttpResponse(
             json.dumps({"error": str(e)}),
             status_code=500,
             mimetype="application/json"
         )
+
+    return func.HttpResponse(
+        json.dumps({
+            "greeting": f"{greeting}! It's {current_time} on {day_of_week}.",
+            "report": report_text,
+            "question": question,
+            "answer": answer
+        }),
+        status_code=200,
+        mimetype="application/json"
+    )
