@@ -7,7 +7,7 @@ from azure.storage.blob import BlobServiceClient
 from openai import AzureOpenAI
 import azure.functions as func
 
-# --- Load environment variables safely ---
+# --- Environment variables ---
 AZURE_OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 AZURE_OPENAI_ENDPOINT = os.getenv("OPENAI_API_BASE")
 AZURE_OPENAI_API_VERSION = os.getenv("OPENAI_API_VERSION", "2024-02-15-preview")
@@ -15,7 +15,7 @@ AZURE_OPENAI_DEPLOYMENT = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4")
 AZURE_STORAGE_CONNECTION_STRING = os.getenv("AZURE_STORAGE_CONNECTION_STRING")
 CONTAINER_NAME = "reports"
 
-# --- Helper to get greeting ---
+# --- Greeting ---
 def get_greeting():
     now = datetime.datetime.now()
     hour = now.hour
@@ -31,7 +31,7 @@ def get_greeting():
     current_time = now.strftime("%I:%M %p")
     return f"{greeting}! It's {current_time} on {day_of_week}."
 
-# --- Load all reports safely ---
+# --- Load reports from Blob Storage ---
 def load_reports():
     reports = {}
     if not AZURE_STORAGE_CONNECTION_STRING:
@@ -50,10 +50,9 @@ def load_reports():
         logging.error("Error loading blobs: %s", str(e), exc_info=True)
     return reports
 
-# --- Azure Function main entry ---
+# --- Azure Function entry ---
 def main(req: func.HttpRequest) -> func.HttpResponse:
     try:
-        # Parse JSON body
         data = req.get_json()
         patient_name = data.get("patient_name")
         question = data.get("question")
@@ -64,7 +63,6 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
                 mimetype="application/json"
             )
 
-        # Load reports
         reports = load_reports()
         if patient_name not in reports:
             return func.HttpResponse(
@@ -75,7 +73,6 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
 
         report_text = reports[patient_name]
 
-        # Check OpenAI configuration
         if not all([AZURE_OPENAI_API_KEY, AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_DEPLOYMENT]):
             logging.error("Missing OpenAI configuration")
             return func.HttpResponse(
@@ -84,14 +81,12 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
                 mimetype="application/json"
             )
 
-        # Connect to Azure OpenAI
         client = AzureOpenAI(
             api_key=AZURE_OPENAI_API_KEY,
             api_version=AZURE_OPENAI_API_VERSION,
             azure_endpoint=AZURE_OPENAI_ENDPOINT
         )
 
-        # Ask OpenAI
         response = client.chat.completions.create(
             model=AZURE_OPENAI_DEPLOYMENT,
             messages=[
