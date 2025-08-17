@@ -5,8 +5,8 @@
       "type": "httpTrigger",
       "direction": "in",
       "name": "req",
-      "methods": ["get", "post"],
-      "route": "{*path}"
+      "methods": ["get","post"],
+      "route": "ask_question"
     },
     {
       "type": "http",
