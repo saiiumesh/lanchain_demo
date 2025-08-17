@@ -4,27 +4,12 @@
     <meta charset="UTF-8">
     <title>Medical Report Q&A</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 40px;
-            background-color: #f9f9f9;
-        }
+        body { font-family: Arial; margin: 40px; background: #f9f9f9; }
         h1 { color: #2a9d8f; }
-        input, textarea {
-            width: 100%;
-            margin: 10px 0;
-            padding: 8px;
-            font-size: 16px;
-        }
-        button {
-            padding: 10px 20px;
-            background-color: #264653;
-            color: white;
-            border: none;
-            cursor: pointer;
-        }
-        button:hover { background-color: #2a9d8f; }
-        #answer { margin-top: 20px; padding: 15px; background-color: #e9ecef; border-radius: 5px; }
+        input, textarea { width: 100%; margin: 10px 0; padding: 8px; font-size: 16px; }
+        button { padding: 10px 20px; background: #264653; color: white; border: none; cursor: pointer; }
+        button:hover { background: #2a9d8f; }
+        #answer { margin-top: 20px; padding: 15px; background: #e9ecef; border-radius: 5px; }
     </style>
 </head>
 <body>
@@ -41,45 +26,51 @@
     <div id="answer"></div>
 
     <script>
-        async function askQuestion() {
-            const patientName = document.getElementById("patientName").value.trim();
-            const question = document.getElementById("question").value.trim();
-            const answerDiv = document.getElementById("answer");
+    async function askQuestion() {
+        const patientName = document.getElementById("patientName").value.trim();
+        const question = document.getElementById("question").value.trim();
+        const answerDiv = document.getElementById("answer");
 
-            if (!patientName || !question) {
-                alert("Please enter both patient name and question.");
+        if (!patientName || !question) {
+            alert("Please enter both patient name and question.");
+            return;
+        }
+
+        answerDiv.innerHTML = "⏳ Asking AI...";
+
+        try {
+            const response = await fetch("/api/ask_question", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ patient_name: patientName, question })
+            });
+
+            let data;
+            const text = await response.text();
+            try { data = JSON.parse(text); } 
+            catch { 
+                console.error("Invalid JSON:", text); 
+                answerDiv.innerHTML = `<span style="color:red">Invalid response from server.</span>`; 
+                return; 
+            }
+
+            if (!response.ok) {
+                answerDiv.innerHTML = `<span style="color:red">API error: ${data.error || "Unknown error"}</span>`;
                 return;
             }
 
-            answerDiv.innerHTML = "⏳ Asking AI...";
+            answerDiv.innerHTML = `
+                <p><strong>${data.greeting}</strong></p>
+                <p><em>Report:</em> ${data.report}</p>
+                <p><em>Question:</em> ${data.question}</p>
+                <p><strong>Answer:</strong> ${data.answer}</p>
+            `;
 
-            try {
-                const response = await fetch("/api/ask_question", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ patient_name: patientName, question })
-                });
-
-                if (!response.ok) {
-                    const text = await response.text(); // fallback if not JSON
-                    console.error("API error:", text);
-                    answerDiv.innerHTML = `<span style="color:red">API error occurred. Check console.</span>`;
-                    return;
-                }
-
-                const data = await response.json();
-
-                answerDiv.innerHTML = `
-                    <p><strong>${data.greeting}</strong></p>
-                    <p><em>Report:</em> ${data.report}</p>
-                    <p><em>Question:</em> ${data.question}</p>
-                    <p><strong>Answer:</strong> ${data.answer}</p>
-                `;
-            } catch (err) {
-                console.error("Fetch failed:", err);
-                answerDiv.innerHTML = `<span style="color:red">Failed to get response. Check console.</span>`;
-            }
+        } catch (err) {
+            console.error("Fetch failed:", err);
+            answerDiv.innerHTML = `<span style="color:red">Failed to get response. Check console.</span>`;
         }
+    }
     </script>
 </body>
 </html>

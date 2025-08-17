@@ -11,11 +11,11 @@ import azure.functions as func
 AZURE_OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 AZURE_OPENAI_ENDPOINT = os.getenv("OPENAI_API_BASE")
 AZURE_OPENAI_API_VERSION = os.getenv("OPENAI_API_VERSION", "2024-02-15-preview")
-AZURE_OPENAI_DEPLOYMENT = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4")
+AZURE_OPENAI_DEPLOYMENT = os.getenv("OPENAI_OPENAI_DEPLOYMENT", "gpt-4")
 AZURE_STORAGE_CONNECTION_STRING = os.getenv("AZURE_STORAGE_CONNECTION_STRING")
 CONTAINER_NAME = "reports"
 
-# --- Greeting ---
+# --- Greeting function ---
 def get_greeting():
     now = datetime.datetime.now()
     hour = now.hour
@@ -31,7 +31,7 @@ def get_greeting():
     current_time = now.strftime("%I:%M %p")
     return f"{greeting}! It's {current_time} on {day_of_week}."
 
-# --- Load reports from Blob Storage ---
+# --- Load reports from Azure Blob Storage ---
 def load_reports():
     reports = {}
     if not AZURE_STORAGE_CONNECTION_STRING:
@@ -50,12 +50,13 @@ def load_reports():
         logging.error("Error loading blobs: %s", str(e), exc_info=True)
     return reports
 
-# --- Azure Function entry ---
+# --- Azure Function entry point ---
 def main(req: func.HttpRequest) -> func.HttpResponse:
     try:
         data = req.get_json()
         patient_name = data.get("patient_name")
         question = data.get("question")
+
         if not patient_name or not question:
             return func.HttpResponse(
                 json.dumps({"error": "Missing patient_name or question"}),
@@ -94,6 +95,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
                 {"role": "user", "content": f"Report:\n{report_text}\n\nQuestion: {question}"}
             ]
         )
+
         answer = response.choices[0].message.content
 
         return func.HttpResponse(
